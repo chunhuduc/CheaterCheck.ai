@@ -2,7 +2,12 @@
   "name": "cheatercheck-ai",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "db:start": "docker-compose up -d harperdb",
+    "db:stop": "docker-compose stop harperdb",
+    "db:down": "docker-compose down",
+    "db:seed": "node ./scripts/harperdb-seed.js",
+    "dev:db": "npm run db:start && node ./scripts/wait-for-harperdb.js && npm run db:seed",
+    "dev": "npm run dev:db && next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
