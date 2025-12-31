@@ -1,0 +1,29 @@
+version: "3.9"
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      HARPERDB_URL: "http://harperdb:9925"
+      HARPERDB_USERNAME: "HDB_ADMIN"
+      HARPERDB_PASSWORD: "changeme"
+      HARPERDB_SCHEMA: "cheatercheck"
+      HARPERDB_TABLE: "signals"
+    depends_on:
+      - harperdb
+
+  harperdb:
+    image: harperdb/harperdb
+    ports:
+      - "9925:9925"
+    environment:
+      HDB_ADMIN_PASSWORD: "changeme"
+      HDB_HTTP_PORT: "9925"
+      HDB_ENABLE_AUTO_START: "true"
+    volumes:
+      - harperdb-data:/opt/harperdb/hdb
+
+volumes:
+  harperdb-data:
