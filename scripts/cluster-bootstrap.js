@@ -43,6 +43,7 @@ const NODES = process.env.CLUSTER_NODES
       { name: 'Node1', url: 'http://localhost:9925', host: 'node-1-hdb', port: 9925 },
       { name: 'Node2', url: 'http://localhost:9927', host: 'node-2-hdb', port: 9925 },
       { name: 'Node3', url: 'http://localhost:9929', host: 'node-3-hdb', port: 9925 },
+      { name: 'TinderCrawler1', url: 'http://localhost:9941', host: 'tinder-crawler-1-hdb', port: 9925 },
     ];
 
 // Use first node as the bootstrap node
@@ -230,8 +231,8 @@ async function executeOperation(url, operation, headers, description) {
   }
   console.log('');
 
-  // Step 3: Configure replication subscriptions
-  console.log('Step 3: Configuring replication subscriptions...');
+  // Step 3: Configure replication subscriptions (signals table only - profiles table stays local)
+  console.log('Step 3: Configuring replication subscriptions (signals table only)...');
   for (const node of NODES) {
     if (node.name === BOOTSTRAP_NODE.name) {
       continue;
@@ -249,8 +250,9 @@ async function executeOperation(url, operation, headers, description) {
         },
       ],
     };
-    await executeOperation(BOOTSTRAP_NODE.url, replicationOp, headers, `Configure replication for ${node.name}`);
+    await executeOperation(BOOTSTRAP_NODE.url, replicationOp, headers, `Configure signals replication for ${node.name}`);
   }
+  console.log('  Note: Profiles table is local to each crawler node and is NOT replicated');
   console.log('');
 
   // Step 4: Verify cluster status

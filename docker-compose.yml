@@ -111,6 +111,41 @@ services:
     volumes:
       - node-3-data:/opt/harperdb/hdb
 
+  # Tinder Crawler Node 1
+  tinder-crawler-1-app:
+    build: ./crawler
+    environment:
+      HARPERDB_URL: "http://tinder-crawler-1-hdb:9925"
+      HARPERDB_USERNAME: "HDB_ADMIN"
+      HARPERDB_PASSWORD: "changeme"
+      HARPERDB_SCHEMA: "cheatercheck"
+      CRAWLER_NODE_NAME: "tinder-crawler-1"
+      REGION: "us-west"
+      CRAWL_INTERVAL: "3600"
+      MAX_PROFILES_PER_RUN: "100"
+      REQUEST_DELAY: "2.0"
+    depends_on:
+      - tinder-crawler-1-hdb
+    networks:
+      - harperdb-cluster
+
+  tinder-crawler-1-hdb:
+    <<: *node-hdb
+    ports:
+      - "9941:9925"
+      - "9942:9926"
+      - "9943:9932"
+    environment:
+      HDB_ADMIN_PASSWORD: "changeme"
+      HDB_HTTP_PORT: "9925"
+      HDB_ENABLE_AUTO_START: "true"
+      CLUSTERING_ENABLED: "true"
+      CLUSTERING_USER: "cluster_user"
+      CLUSTERING_PASSWORD: "cluster_pass_123"
+      CLUSTERING_NODENAME: "TinderCrawler1"
+    volumes:
+      - tinder-crawler-1-data:/opt/harperdb/hdb
+
 networks:
   harperdb-cluster:
     driver: bridge
@@ -119,3 +154,4 @@ volumes:
   node-1-data:
   node-2-data:
   node-3-data:
+  tinder-crawler-1-data:

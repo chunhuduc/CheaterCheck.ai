@@ -17,7 +17,10 @@
     "cluster:logs": "docker-compose logs -f",
     "cluster:bootstrap": "node ./scripts/cluster-bootstrap.js",
     "cluster:status": "docker-compose ps",
-    "cluster:seed": "HARPERDB_URL=http://localhost:9925 node ./scripts/harperdb-seed.js"
+    "cluster:seed": "HARPERDB_URL=http://localhost:9925 node ./scripts/harperdb-seed.js",
+    "crawler:up": "docker-compose up -d tinder-crawler-1-app tinder-crawler-1-hdb",
+    "crawler:logs": "docker-compose logs -f tinder-crawler-1-app",
+    "crawler:status": "docker-compose ps tinder-crawler-1-app tinder-crawler-1-hdb"
   },
   "dependencies": {
     "next": "13.5.6",
