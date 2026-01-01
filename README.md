@@ -42,6 +42,17 @@ CREATE TABLE cheatercheck.signals (
 
 Use `harperdb/seed.json` to insert sample rows for local testing.
 
+## Multi-Node Cluster Deployment
+
+For production deployments with high availability and automatic data synchronization, see [CLUSTER.md](CLUSTER.md) for instructions on deploying multiple self-contained nodes (Next.js app + HarperDB per node).
+
+Quick start:
+```bash
+npm run cluster:up          # Start all nodes
+npm run cluster:bootstrap   # Configure cluster
+npm run cluster:seed        # Seed initial data
+```
+
 ## HarperDB built-in Next.js (App Platform)
 
 If you are deploying via HarperDB built-in Next.js:

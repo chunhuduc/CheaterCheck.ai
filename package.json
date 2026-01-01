@@ -10,7 +10,14 @@
     "dev": "npm run dev:db && next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "cluster:up": "docker-compose up -d",
+    "cluster:down": "docker-compose down",
+    "cluster:stop": "docker-compose stop",
+    "cluster:logs": "docker-compose logs -f",
+    "cluster:bootstrap": "node ./scripts/cluster-bootstrap.js",
+    "cluster:status": "docker-compose ps",
+    "cluster:seed": "HARPERDB_URL=http://localhost:9925 node ./scripts/harperdb-seed.js"
   },
   "dependencies": {
     "next": "13.5.6",
