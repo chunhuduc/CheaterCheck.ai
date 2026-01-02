@@ -90,9 +90,56 @@ export default async function handler(req, res) {
     const found = rows.length > 0;
     const top = rows[0] || {};
 
+    // If no results found, create a crawl job
+    let jobId = null;
+    if (!found) {
+      try {
+        const crypto = require("crypto");
+        const jobIdValue = `job_${crypto.randomBytes(8).toString("hex")}`;
+        const now = Math.floor(Date.now() / 1000);
+        
+        const searchQuery = {
+          fullName: fullName.trim(),
+          location: (location || "").trim(),
+          app: (app || "tinder").trim(),
+          imageData: imageData ? imageData.substring(0, 100) + "..." : null,
+        };
+
+        const job = {
+          id: jobIdValue,
+          search_query: searchQuery,
+          status: "pending",
+          progress: 0,
+          current_step: "Queued",
+          profiles_found: 0,
+          signals_generated: 0,
+          created_at: now,
+          created_by: req.headers["x-session-id"] || "anonymous",
+          assigned_to: null,
+          priority: 1,
+          retry_count: 0,
+          last_updated: now,
+          error_message: null,
+        };
+
+        await harperdbQuery({
+          operation: "insert",
+          schema: schema,
+          table: "crawl_jobs",
+          records: [job],
+        });
+        
+        jobId = jobIdValue;
+      } catch (error) {
+        console.error("Failed to create crawl job:", error);
+        // Continue with response even if job creation fails
+      }
+    }
+
     res.status(200).json({
       demo: false,
       found,
+      job_id: jobId,
       confidence: top.confidence || (found ? "High" : "Low"),
       score: Number.isFinite(top.score)
         ? top.score
@@ -113,14 +160,21 @@ export default async function handler(req, res) {
         : [
             {
               label: "No signals found",
-              detail: "No matching records in the current dataset.",
-              status: "Clear"
+              detail: jobId 
+                ? "Crawl job created. Results will be available shortly."
+                : "No matching records in the current dataset.",
+              status: jobId ? "Crawling" : "Clear"
             }
           ],
       nextSteps: found
         ? [
             "Verify with a second photo or handle.",
             "Use the safety checklist before meeting."
+          ]
+        : jobId
+        ? [
+            "Crawl job created. Please wait for results.",
+            "Refresh this page in a few moments."
           ]
         : [
             "Try another photo or spelling variation.",

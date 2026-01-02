@@ -11,3 +11,20 @@ CREATE TABLE cheatercheck.signals (
   score INT,
   image_hash STRING
 );
+
+CREATE TABLE cheatercheck.crawl_jobs (
+  id STRING PRIMARY KEY,
+  search_query JSON,
+  status STRING,
+  progress INT,
+  current_step STRING,
+  profiles_found INT,
+  signals_generated INT,
+  created_at INT,
+  created_by STRING,
+  assigned_to STRING,
+  priority INT,
+  retry_count INT,
+  last_updated INT,
+  error_message STRING
+);

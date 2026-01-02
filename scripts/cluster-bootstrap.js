@@ -231,8 +231,8 @@ async function executeOperation(url, operation, headers, description) {
   }
   console.log('');
 
-  // Step 3: Configure replication subscriptions (signals table only - profiles table stays local)
-  console.log('Step 3: Configuring replication subscriptions (signals table only)...');
+  // Step 3: Configure replication subscriptions (signals and crawl_jobs tables - profiles table stays local)
+  console.log('Step 3: Configuring replication subscriptions...');
   for (const node of NODES) {
     if (node.name === BOOTSTRAP_NODE.name) {
       continue;
@@ -244,15 +244,22 @@ async function executeOperation(url, operation, headers, description) {
       subscriptions: [
         {
           schema: SCHEMA,
-          table: TABLE,
+          table: TABLE,  // signals table
+          subscribe: true,
+          publish: true,
+        },
+        {
+          schema: SCHEMA,
+          table: 'crawl_jobs',  // crawl_jobs table (for job queue)
           subscribe: true,
           publish: true,
         },
       ],
     };
-    await executeOperation(BOOTSTRAP_NODE.url, replicationOp, headers, `Configure signals replication for ${node.name}`);
+    await executeOperation(BOOTSTRAP_NODE.url, replicationOp, headers, `Configure replication for ${node.name}`);
   }
   console.log('  Note: Profiles table is local to each crawler node and is NOT replicated');
+  console.log('  Note: crawl_jobs table IS replicated for job queue access');
   console.log('');
 
   // Step 4: Verify cluster status

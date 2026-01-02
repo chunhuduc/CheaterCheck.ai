@@ -18,6 +18,18 @@ x-node-hdb: &node-hdb
     - harperdb-cluster
 
 services:
+  # Shared HarperDB for dev mode
+  harperdb:
+    image: harperdb/harperdb
+    ports:
+      - "9925:9925"
+    environment:
+      HDB_ADMIN_PASSWORD: "changeme"
+      HDB_HTTP_PORT: "9925"
+      HDB_ENABLE_AUTO_START: "true"
+    volumes:
+      - harperdb-data:/opt/harperdb/hdb
+
   # Node 1
   node-1-app:
     <<: *node-app
@@ -151,6 +163,7 @@ networks:
     driver: bridge
 
 volumes:
+  harperdb-data:
   node-1-data:
   node-2-data:
   node-3-data:

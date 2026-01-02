@@ -1,8 +1,9 @@
-﻿import { useState } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import Layout from "../components/Layout";
 import styles from "../styles/Search.module.css";
 
 const DEFAULT_APP = "tinder";
+const POLL_INTERVAL = 2000; // 2 seconds
 
 export default function Search() {
   const [form, setForm] = useState({
@@ -17,6 +18,8 @@ export default function Search() {
   const [error, setError] = useState("");
   const [paid, setPaid] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [crawlProgress, setCrawlProgress] = useState(null);
+  const pollIntervalRef = useRef(null);
 
   const handleChange = (field) => (event) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }));
@@ -41,10 +44,69 @@ export default function Search() {
     reader.readAsDataURL(file);
   };
 
+  const pollCrawlStatus = async (jobId) => {
+    try {
+      const response = await fetch(`/api/crawl-status?job_id=${jobId}`);
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to get crawl status");
+      }
+      
+      setCrawlProgress(data);
+      
+      // If completed, refresh lookup results
+      if (data.status === "completed") {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+        
+        // Refresh lookup
+        const lookupResponse = await fetch("/api/lookup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fullName: form.fullName,
+            location: form.location,
+            app: form.app,
+            imageData: form.imageData
+          })
+        });
+        const lookupData = await lookupResponse.json();
+        if (lookupResponse.ok) {
+          setResult(lookupData);
+          setCrawlProgress(null);
+        }
+      } else if (data.status === "failed") {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+        setError(data.error_message || "Crawl job failed");
+        setCrawlProgress(null);
+      }
+    } catch (err) {
+      console.error("Poll error:", err);
+      // Continue polling on error
+    }
+  };
+
+  useEffect(() => {
+    // Cleanup polling on unmount
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, []);
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError("");
     setResult(null);
+    setCrawlProgress(null);
+    
+    // Clear any existing polling
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
 
     if (!form.imageData) {
       setError("Upload a clear face photo to run the scan.");
@@ -74,7 +136,25 @@ export default function Search() {
       }
       setResult(data);
       setPaid(false);
-      setShowPaywall(true);
+      
+      // If job_id exists, start polling for progress
+      if (data.job_id) {
+        setCrawlProgress({
+          status: "pending",
+          progress: 0,
+          current_step: "Queued"
+        });
+        
+        // Start polling
+        pollIntervalRef.current = setInterval(() => {
+          pollCrawlStatus(data.job_id);
+        }, POLL_INTERVAL);
+        
+        // Initial poll
+        pollCrawlStatus(data.job_id);
+      } else {
+        setShowPaywall(true);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -177,6 +257,30 @@ export default function Search() {
             </div>
           </form>
         </section>
+
+        {crawlProgress && (
+          <section className={styles.crawlProgress}>
+            <div className={styles.progressHeader}>
+              <h3>Crawling in progress...</h3>
+              <p>{crawlProgress.current_step || "Processing"}</p>
+            </div>
+            <div className={styles.progressBar}>
+              <div 
+                className={styles.progressFill}
+                style={{ width: `${crawlProgress.progress || 0}%` }}
+              />
+            </div>
+            <div className={styles.progressStats}>
+              <span>Progress: {crawlProgress.progress || 0}%</span>
+              {crawlProgress.profiles_found !== undefined && (
+                <span>Profiles: {crawlProgress.profiles_found}</span>
+              )}
+              {crawlProgress.signals_generated !== undefined && (
+                <span>Signals: {crawlProgress.signals_generated}</span>
+              )}
+            </div>
+          </section>
+        )}
 
         {hasResult && (
           <section
