@@ -1,132 +1,96 @@
-﻿# CheaterCheck.ai
+# CheaterCheck.ai
 
-A HarperDB + Next.js website concept inspired by cheaterbuster-style dating risk checks.
+Dating risk intelligence concept. Upload a profile photo plus name, location, and
+app; the system checks a signals store, returns a gated risk report, and enqueues a
+background crawl when no data exists. Pay to unlock the full report.
 
-## Setup
+Concept / MVP project, not a live consumer product.
 
-1. Install dependencies: `npm install`
-2. Configure environment variables:
+## Stack
 
-   Copy `.env.example` to `.env.local` (if exists) or set environment variables:
-   ```
-   HARPERDB_URL=http://localhost:9925
-   HARPERDB_USERNAME=HDB_ADMIN
-   HARPERDB_PASSWORD=changeme
-   HARPERDB_SCHEMA=cheatercheck
-   HARPERDB_TABLE=signals
-   ```
+| Layer      | Tech |
+|------------|------|
+| Web        | Next.js 15 (App Router), React 18, deploys to Vercel |
+| API        | NestJS 10, deploys to Railway / Render / Fly |
+| Database   | Postgres (Neon) via Prisma |
+| Queue      | Postgres-backed job table, polled by an in-process worker |
+| Realtime   | Ably (crawl progress); falls back to polling if unset |
+| Payments   | Stripe Checkout + webhook unlock |
+| Email      | Resend (report unlocked) |
+| Monorepo   | Turborepo + pnpm workspaces |
 
-3. Install Python dependencies for crawler (if using):
-   ```bash
-   cd crawler
-   pip install -r requirements.txt
-   ```
+## Layout
 
-4. Start development: `npm run dev`
+```
+apps/
+  web/    Next.js front end (landing, /search, /report)
+  api/    NestJS API + crawl worker
+packages/
+  types/  shared request/response DTOs (single source of truth)
+```
 
-## Development Mode
+## Endpoints (API)
 
-Trong dev mode, tất cả nodes (app và crawler) đều dùng chung một HarperDB instance tại `http://localhost:9925`.
+- `POST /lookup` run a scan; creates a Report, enqueues a CrawlJob on a miss
+- `GET  /reports/:id` fetch a report (gated until unlocked)
+- `GET  /jobs/:id` crawl progress (polling fallback)
+- `GET  /realtime/token` Ably token request for the browser
+- `POST /payments/checkout` start Stripe Checkout for a report
+- `POST /payments/webhook` Stripe webhook; unlocks the report and emails the link
+- `GET  /health`
 
-### Setup Environment Variables
+## Local development
 
-Copy `.env.example` to `.env.local` và cấu hình:
+Requires Node 20+, pnpm 9, and a Postgres database (Neon recommended).
 
 ```bash
-cp .env.example .env.local
+pnpm install
+
+# 1. Configure env
+cp .env.example apps/api/.env            # set DATABASE_URL + DIRECT_URL (Neon)
+cp apps/web/.env.local.example apps/web/.env.local
+
+# 2. Set up the database
+pnpm db:generate
+pnpm db:migrate          # creates tables
+pnpm db:seed             # sample signals
+
+# 3. Run everything
+pnpm dev                 # turbo runs web (:3000) + api (:4000)
 ```
 
-### Start Shared HarperDB
+Then open http://localhost:3000.
 
-```bash
-npm run dev:db:start     # Start HarperDB only
-npm run dev:db           # Start HarperDB, wait for ready, and seed data
-npm run dev:db:stop      # Stop HarperDB
-```
+### Neon connection strings
 
-### Start Tinder Crawler (Dev Mode)
+Prisma needs two URLs:
 
-Chạy crawler trực tiếp bằng Python (không qua Docker), kết nối vào HarperDB chung:
+- `DATABASE_URL`: the **pooled** endpoint (host contains `-pooler`). Used at runtime.
+- `DIRECT_URL`: the **direct** endpoint (same host without `-pooler`). Used for migrations.
 
-```bash
-npm run dev:crawler       # Start crawler in continuous mode
-npm run dev:crawler:once  # Run crawler once and exit
-```
+### Optional integrations
 
-Crawler sẽ tự động:
-- Kết nối vào `http://localhost:9925` (shared HarperDB)
-- Tạo profiles table locally (nếu chưa có)
-- Insert profiles vào profiles table (local)
-- Generate signals vào signals table (shared)
+The API degrades gracefully when these are unset, so you can develop without them:
 
-**Lưu ý**: Đảm bảo đã cài đặt Python dependencies:
-```bash
-cd crawler
-pip install -r requirements.txt
-```
+- `ABLY_API_KEY` unset: realtime disabled, the web client polls `GET /jobs/:id`.
+- `RESEND_API_KEY` unset: emails are logged, not sent.
+- `STRIPE_SECRET_KEY` unset: checkout returns a 400.
 
-### Start Next.js App (Dev Mode)
+To test Stripe locally, set `STRIPE_SECRET_KEY`, create a price and set
+`STRIPE_PRICE_SINGLE` (or leave it unset to use an inline $18 line item), then run
+`stripe listen --forward-to localhost:4000/payments/webhook` and put the printed
+signing secret in `STRIPE_WEBHOOK_SECRET`.
 
-App cũng kết nối vào cùng HarperDB chung:
+## The crawl worker
 
-```bash
-npm run dev:app          # Start DB + Next.js app (same as 'npm run dev')
-npm run dev              # Alternative: Start DB + Next.js app
-```
+`apps/api/src/jobs/crawl.worker.ts` polls `crawl_jobs` for `pending` rows, claims one
+atomically with `FOR UPDATE SKIP LOCKED`, runs the crawl, writes any `Signal` rows, and
+streams progress over Ably. The crawl itself (`runCrawl`) is a deterministic stub;
+real scraping / face matching plugs in there. The queue, claim, progress, and
+write-back machinery is real.
 
-### Start Everything Together
+## Deploy
 
-```bash
-npm run dev:all          # Start DB, crawler, and app together
-```
-
-**Note**: `dev:all` chạy tất cả services trong background. Để chạy riêng lẻ, sử dụng các commands trên.
-
-Tất cả nodes (app và crawler) đều coi HarperDB chung này là "local" của chúng.
-
-## HarperDB schema suggestion
-
-`harperdb/schema.sql` contains a starter schema with a single `signals` table
-optimized for name + location searches. Example:
-
-```
-CREATE SCHEMA cheatercheck;
-CREATE TABLE cheatercheck.signals (
-  id STRING PRIMARY KEY,
-  full_name STRING,
-  location STRING,
-  app STRING,
-  signal_type STRING,
-  status STRING,
-  detail STRING,
-  confidence STRING,
-  score INT,
-  image_hash STRING
-);
-```
-
-## Seed data
-
-Use `harperdb/seed.json` to insert sample rows for local testing.
-
-## Multi-Node Cluster Deployment
-
-For production deployments with high availability and automatic data synchronization, see [CLUSTER.md](CLUSTER.md) for instructions on deploying multiple self-contained nodes (Next.js app + HarperDB per node).
-
-Quick start:
-```bash
-npm run cluster:up          # Start all nodes
-npm run cluster:bootstrap   # Configure cluster
-npm run cluster:seed        # Seed initial data
-```
-
-## HarperDB built-in Next.js (App Platform)
-
-If you are deploying via HarperDB built-in Next.js:
-
-1. Create a new app in HarperDB Studio and select Next.js.
-2. Point it to this project directory.
-3. Add the environment variables above in the app settings.
-4. Deploy and use `/api/lookup` as the serverless endpoint.
-
-Refer to HarperDB docs for the exact flow in your version.
+- **web** to Vercel: set `NEXT_PUBLIC_API_URL` to the deployed API origin.
+- **api** to Railway / Render / Fly: set all env vars from `.env.example`, run
+  `pnpm db:deploy` on release, and point `WEB_ORIGIN` at the Vercel domain.

@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+/// Risk signals matched during a lookup. Seeded + populated by the crawler.
+model Signal {
+  id         String   @id @default(cuid())
+  fullName   String   @map("full_name")
+  location   String?
+  app        String
+  signalType String   @map("signal_type")
+  status     String   @default("Review")
+  detail     String
+  confidence String   @default("Medium")
+  score      Int      @default(40)
+  imageHash  String?  @map("image_hash")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([fullName, app])
+  @@index([fullName, location, app])
+  @@map("signals")
+}
+
+/// A scan report created on every lookup. Gated behind payment until unlocked.
+model Report {
+  id          String   @id @default(cuid())
+  fullName    String   @map("full_name")
+  location    String   @default("")
+  app         String
+  found       Boolean
+  confidence  String
+  score       Int
+  matches     Json
+  nextSteps   Json     @map("next_steps")
+  unlocked    Boolean  @default(false)
+  email       String?
+  job         CrawlJob? @relation(fields: [jobId], references: [id])
+  jobId       String?  @map("job_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("reports")
+}
+
+/// Postgres-backed job queue. The worker polls for status = pending.
+model CrawlJob {
+  id               String   @id @default(cuid())
+  fullName         String   @map("full_name")
+  location         String   @default("")
+  app              String
+  status           String   @default("pending")
+  progress         Int      @default(0)
+  currentStep      String   @default("Queued") @map("current_step")
+  profilesFound    Int      @default(0) @map("profiles_found")
+  signalsGenerated Int      @default(0) @map("signals_generated")
+  priority         Int      @default(1)
+  retryCount       Int      @default(0) @map("retry_count")
+  errorMessage     String?  @map("error_message")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  reports          Report[]
+
+  @@index([status, priority, createdAt])
+  @@map("crawl_jobs")
+}
