@@ -6,6 +6,33 @@ background crawl when no data exists. Pay to unlock the full report.
 
 Concept / MVP project, not a live consumer product.
 
+<!-- chunhuduc.com:showcase:start -->
+```yaml
+summary: "Turborepo monorepo (Next.js 15 + NestJS) with a Postgres-backed job queue on Neon/Prisma, Ably realtime progress, Stripe Checkout paywall with signature-verified webhooks, and Resend email."
+tags: [Next.js, NestJS, Turborepo, Prisma, Stripe, Ably]
+outcome: "Postgres job queue with realtime progress and a Stripe-gated report flow."
+complexityScore: 6
+motif: { from: "#0891b2", to: "#84cc16", icon: automation }
+architecture:
+  from: "#0891b2"
+  to: "#84cc16"
+  nodes:
+    - { id: web, label: "Next.js web", x: 18, y: 14 }
+    - { id: api, label: "NestJS API", x: 50, y: 14, kind: primary }
+    - { id: db, label: "Postgres (Neon)", x: 50, y: 50, kind: store }
+    - { id: worker, label: "Crawl worker", x: 82, y: 30 }
+    - { id: ably, label: "Ably realtime", x: 18, y: 50 }
+    - { id: stripe, label: "Stripe + Resend", x: 82, y: 58 }
+  edges:
+    - { from: web, to: api, flow: true }
+    - { from: api, to: db, flow: true }
+    - { from: db, to: worker, flow: true, curve: 4 }
+    - { from: worker, to: ably, curve: -6 }
+    - { from: ably, to: web, curve: -4 }
+    - { from: api, to: stripe, flow: true }
+```
+<!-- chunhuduc.com:showcase:end -->
+
 ## Stack
 
 | Layer      | Tech |
